@@ -1,0 +1,5 @@
+*.log
+config.json
+history.csv
+.DS_Store
+Thumbs.db
