@@ -4,10 +4,7 @@
 
 <img src="docs/card.svg" alt="卡片示意" width="820">
 
-> 上图是按真实布局重绘的 **SVG 示意图**，不是截图；房间号一律写成 `XXX`。
-> 想要真实效果就装一次，按下快捷键自己看。
-
-设置向导的五个分组，直接列出来：
+设置向导五个分组：
 
 | 分组 | 可选值 | 说明 |
 |---|---|---|
@@ -17,7 +14,7 @@
 | 房间号 | 三位数字，如 `101` | 只填房间号，不带楼栋前缀 |
 | 快捷键 | `Ctrl`/`Alt`/`Shift`/`Win` 组合 + 单个键 | 留空 = 不设热键 |
 
-- 首次运行弹设置向导：主题（深色 / 浅色 / 跟随系统）、校区、楼栋、房间号、全局快捷键
+- 首次运行直接弹上面的向导，填完就能查
 - 卡片右上角齿轮，随时改设置
 - 回车 / 点击卡片关闭，20 秒自动淡出
 - 每次查询追加一行本地历史：`%LOCALAPPDATA%\szu-power\history.csv`
@@ -55,34 +52,9 @@
 | `szu-power.ps1` | 全部逻辑：查询、解析、设置向导、卡片绘制 |
 | `szu-power.vbs` | 静默启动器（避免弹黑框） |
 | `安装.bat` | 创建桌面快捷方式 + 打开设置向导 |
-| `icon.ico` | 图标（16/24/32/48/64/128 用 DIB，256 用 PNG） |
-| `生成图标.ps1` | 想换图标就跑它，改两个色号即可 |
+| `icon.ico` | 程序图标 |
 
 配置文件在 `%LOCALAPPDATA%\szu-power\config.json`，不在仓库里，所以换电脑 / 分享仓库都不会带出你的房间号。
-
-## 换个图标
-
-```
-powershell -ExecutionPolicy Bypass -File 生成图标.ps1 -Preview     # 先出 preview.png 看效果
-powershell -ExecutionPolicy Bypass -File 生成图标.ps1              # 覆盖 icon.ico（默认蓝底闪电）
-powershell -ExecutionPolicy Bypass -File 生成图标.ps1 -Preset violet -Glyph power -Label "电"
-```
-
-参数：
-
-| 参数 | 取值 | 说明 |
-|---|---|---|
-| `-Style` | line / solid | 线框风（默认）/ 渐变实心 |
-| `-Bg` `-Ink` | `#RRGGBB` | 线框风的底色 / 线条色 |
-| `-Preset` | blue / violet / green / amber / slate | 渐变配色（solid 用） |
-| `-Glyph` | bolt / power / battery / none | 内置图形 |
-| `-Label` | 任意短文字 | 图形下方加文字，如「电」 |
-| `-LabelRotate` | 角度 | 文字旋转 |
-| `-Radius` | 百分比 | 四角统一圆角 |
-| `-RadiusTL/-TR/-BR/-BL` | 百分比 | 单个角独立设置（做异形底座） |
-| `-Overlay` | PNG 路径 | 用你自己的图替代内置图形 |
-
-重新生成后重启一次常驻进程（托盘右键退出，或注销重新登录），图标就换过来了。
 
 ## 原理
 
@@ -98,8 +70,3 @@ powershell -ExecutionPolicy Bypass -File 生成图标.ps1 -Preset violet -Glyph 
 ## 免责
 
 非官方工具，只读查询自己宿舍的电表数据，不改任何东西。系统接口哪天变了，卡片会变成「查询失败」并给出原因。
-
-
-
-
-
