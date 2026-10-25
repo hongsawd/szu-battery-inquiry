@@ -1,7 +1,12 @@
-*.log
+﻿*.log
 config.json
 history.csv
 .DS_Store
 Thumbs.db
 cache.json
 history-legacy.csv
+mac/SzuPower
+mac/*.app
+mac/深大电量.app
+mac/深大电量-mac.zip
+mac/*.icns

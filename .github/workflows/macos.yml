@@ -1,0 +1,36 @@
+name: macOS build
+
+# 没有 Mac 也能验：GitHub 的 macOS runner 会真的编译一遍并跑自检
+on:
+  push:
+    paths:
+      - 'mac/**'
+      - '.github/workflows/macos.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Swift 版本
+        run: swift --version
+
+      - name: 编译 + 自检
+        working-directory: mac
+        run: |
+          chmod +x build.sh
+          ./build.sh
+
+      - name: 打包
+        working-directory: mac
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent "深大电量.app" "深大电量-mac.zip"
+          ls -lh "深大电量-mac.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 深大电量-mac
+          path: mac/深大电量-mac.zip
+          if-no-files-found: error
