@@ -479,11 +479,21 @@ struct SettingsView: View {
     @State var autostart: Bool
     @State var holdSeconds: Double
     @State var warnBelow: Double
+    @State var warnText: String
     @State var status: String = ""
 
     var buildings: [String]
     var onSave: ([String: Any]) -> String?
     var onCancel: () -> Void
+
+    /// 一行“标签 + 控件”，不用 Grid（Grid 要 macOS 13）
+    func row<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            Text(label).font(.system(size: 11)).foregroundColor(.secondary).frame(width: 62, alignment: .leading)
+            content()
+            Spacer(minLength: 0)
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -492,62 +502,51 @@ struct SettingsView: View {
 
             Divider()
 
-            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
-                GridRow {
-                    Text("主题").font(.system(size: 11)).foregroundColor(.secondary)
-                    Picker("", selection: $theme) {
-                        Text("深色").tag("dark")
-                        Text("浅色").tag("light")
-                        Text("跟随系统").tag("auto")
-                    }.pickerStyle(.segmented).labelsHidden().frame(width: 240)
-                }
-                GridRow {
-                    Text("校区").font(.system(size: 11)).foregroundColor(.secondary)
-                    TextField("南校区", text: $campus).textFieldStyle(.roundedBorder)
-                }
-                GridRow {
-                    Text("楼栋").font(.system(size: 11)).foregroundColor(.secondary)
-                    Picker("", selection: $building) {
-                        if !buildings.contains(building) && !building.isEmpty {
-                            Text(building).tag(building)
-                        }
-                        ForEach(buildings, id: \.self) { Text($0).tag($0) }
-                    }.labelsHidden().frame(width: 240)
-                }
-                GridRow {
-                    Text("房间号").font(.system(size: 11)).foregroundColor(.secondary)
-                    TextField("三位，如 101", text: $room).textFieldStyle(.roundedBorder).frame(width: 120)
-                }
-                GridRow {
-                    Text("快捷键").font(.system(size: 11)).foregroundColor(.secondary)
-                    TextField("CTRL + ALT + E（留空 = 不设）", text: $hotkey).textFieldStyle(.roundedBorder)
-                }
-                GridRow {
-                    Text("开机自启").font(.system(size: 11)).foregroundColor(.secondary)
-                    Toggle("登录时启动，常驻菜单栏", isOn: $autostart).toggleStyle(.checkbox)
-                }
-                GridRow {
-                    Text("卡片停留").font(.system(size: 11)).foregroundColor(.secondary)
-                    HStack(spacing: 8) {
-                        Picker("", selection: $holdSeconds) {
-                            Text("20 秒").tag(20.0)
-                            Text("45 秒").tag(45.0)
-                            Text("1 分钟").tag(60.0)
-                            Text("3 分钟").tag(180.0)
-                            Text("不自动关").tag(0.0)
-                        }.labelsHidden().frame(width: 130)
-                        Stepper("", value: $holdSeconds, in: 0...3600, step: 5).labelsHidden()
-                        Text(holdSeconds == 0 ? "手动关" : "\(Int(holdSeconds)) 秒")
-                            .font(.system(size: 11)).foregroundColor(.secondary)
+            row("主题") {
+                Picker("", selection: $theme) {
+                    Text("深色").tag("dark")
+                    Text("浅色").tag("light")
+                    Text("跟随系统").tag("auto")
+                }.pickerStyle(.segmented).labelsHidden().frame(width: 240)
+            }
+            row("校区") {
+                TextField("南校区", text: $campus).textFieldStyle(.roundedBorder)
+            }
+            row("楼栋") {
+                Picker("", selection: $building) {
+                    if !buildings.contains(building) && !building.isEmpty {
+                        Text(building).tag(building)
                     }
+                    ForEach(buildings, id: \.self) { Text($0).tag($0) }
+                }.labelsHidden().frame(width: 240)
+            }
+            row("房间号") {
+                TextField("三位，如 101", text: $room).textFieldStyle(.roundedBorder).frame(width: 120)
+            }
+            row("快捷键") {
+                TextField("CTRL + ALT + E（留空 = 不设）", text: $hotkey).textFieldStyle(.roundedBorder)
+            }
+            row("开机自启") {
+                Toggle("登录时启动，常驻菜单栏", isOn: $autostart).toggleStyle(.checkbox)
+            }
+            row("卡片停留") {
+                HStack(spacing: 8) {
+                    Picker("", selection: $holdSeconds) {
+                        Text("20 秒").tag(20.0)
+                        Text("45 秒").tag(45.0)
+                        Text("1 分钟").tag(60.0)
+                        Text("3 分钟").tag(180.0)
+                        Text("不自动关").tag(0.0)
+                    }.labelsHidden().frame(width: 130)
+                    Stepper("", value: $holdSeconds, in: 0...3600, step: 5).labelsHidden()
+                    Text(holdSeconds == 0 ? "手动关" : "\(Int(holdSeconds)) 秒")
+                        .font(.system(size: 11)).foregroundColor(.secondary)
                 }
-                GridRow {
-                    Text("低电量预警").font(.system(size: 11)).foregroundColor(.secondary)
-                    HStack(spacing: 6) {
-                        TextField("20", value: $warnBelow, format: .number)
-                            .textFieldStyle(.roundedBorder).frame(width: 70)
-                        Text("度以下提醒（0 = 关）").font(.system(size: 11)).foregroundColor(.secondary)
-                    }
+            }
+            row("低电量预警") {
+                HStack(spacing: 6) {
+                    TextField("20", text: $warnText).textFieldStyle(.roundedBorder).frame(width: 70)
+                    Text("度以下提醒（0 = 关）").font(.system(size: 11)).foregroundColor(.secondary)
                 }
             }
 
@@ -559,10 +558,11 @@ struct SettingsView: View {
                 Spacer()
                 Button("取消", action: onCancel).keyboardShortcut(.cancelAction)
                 Button("保存") {
+                    let wb = Double(warnText.trimmingCharacters(in: .whitespaces)) ?? warnBelow
                     let payload: [String: Any] = [
                         "theme": theme, "campus": campus, "building": building, "room": room,
                         "hotkey": hotkey, "autostart": autostart,
-                        "holdSeconds": Int(holdSeconds), "warnBelow": warnBelow
+                        "holdSeconds": Int(holdSeconds), "warnBelow": wb
                     ]
                     if let err = onSave(payload) { status = err } else { status = "" }
                 }.keyboardShortcut(.defaultAction)
@@ -617,11 +617,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // 电量提醒：启动时如果已经低于阈值，直接弹一次
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-            if warnInfo(snap: Model.shared.snap ?? Snapshot(date: "", remain: .infinity, dayUse: nil,
-                                                            avg: 0, avgDays: 0, series: [], fetchedAt: Date(),
-                                                            roomId: ""),
-                        cfg: Model.shared.cfg) != nil {
-                self?.showCard()
+            guard let self = self else { return }
+            if let s = Model.shared.snap, warnInfo(snap: s, cfg: Model.shared.cfg) != nil {
+                self.showCard()
             }
         }
 
@@ -649,11 +647,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     Model.shared.cfg["roomId"] = s.roomId
                     Store.shared.saveConfig(Model.shared.cfg)
                 }
-                Store.shared.saveCache([
+                var cache: [String: Any] = [
                     "ts": ISO8601DateFormatter().string(from: Date()),
-                    "remain": s.remain, "date": s.date, "dayUse": s.dayUse as Any,
-                    "avg": s.avg, "series": s.series.map { ["label": $0.label, "value": $0.value] }
-                ])
+                    "remain": s.remain, "date": s.date,
+                    "avg": s.avg,
+                    "series": s.series.map { ["label": $0.label, "value": $0.value] }
+                ]
+                if let d = s.dayUse { cache["dayUse"] = d }
+                Store.shared.saveCache(cache)
             } catch {
                 Model.shared.errorText = error.localizedDescription
                 Model.shared.warn = nil
@@ -764,6 +765,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             autostart: cfgBool(cfg, "autostart", true),
             holdSeconds: cfgDouble(cfg, "holdSeconds", 20),
             warnBelow: cfgDouble(cfg, "warnBelow", 20),
+            warnText: String(format: "%.0f", cfgDouble(cfg, "warnBelow", 20)),
             buildings: buildings,
             onSave: { [weak self] payload in
                 guard let self = self else { return "内部错误" }

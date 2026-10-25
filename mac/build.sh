@@ -8,9 +8,14 @@ APP_NAME="深大电量"
 BUNDLE="$APP_NAME.app"
 BIN="SzuPower"
 
-echo "==> 编译"
-swiftc -O -o "$BIN" main.swift \
+echo "==> 编译（Intel + Apple Silicon 通用，最低 macOS 11）"
+swiftc -O -target arm64-apple-macos11.0 -o "$BIN.arm64" main.swift \
   -framework Cocoa -framework SwiftUI -framework Carbon
+swiftc -O -target x86_64-apple-macos11.0 -o "$BIN.x86_64" main.swift \
+  -framework Cocoa -framework SwiftUI -framework Carbon
+lipo -create "$BIN.arm64" "$BIN.x86_64" -output "$BIN"
+rm -f "$BIN.arm64" "$BIN.x86_64"
+lipo -info "$BIN"
 
 echo "==> 组装 .app"
 rm -rf "$BUNDLE"
