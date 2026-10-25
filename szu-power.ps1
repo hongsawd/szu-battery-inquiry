@@ -183,6 +183,8 @@ function Read-Config {
             scale       = if ($o.scale) { [double]$o.scale } else { 1.0 }
             holdSeconds = if ($null -ne $o.holdSeconds) { [int]$o.holdSeconds } else { 20 }
             warnBelow   = if ($null -ne $o.warnBelow) { [double]$o.warnBelow } else { 20 }
+            warnAckDate   = if ($o.warnAckDate) { [string]$o.warnAckDate } else { '' }
+            warnAckRemain = if ($null -ne $o.warnAckRemain) { [double]$o.warnAckRemain } else { -1 }
         }
     } catch { $null }
 }
@@ -978,6 +980,8 @@ function Show-Setup($cfg) {
             scale       = [double]$Script:st.scale
             holdSeconds = $holdVal
             warnBelow   = $warnVal
+            warnAckDate   = if ($cfg) { [string]$cfg.warnAckDate } else { '' }
+            warnAckRemain = if ($cfg -and $null -ne $cfg.warnAckRemain) { [double]$cfg.warnAckRemain } else { -1 }
         }
         $Script:win.Close()
     })
@@ -999,6 +1003,10 @@ function Show-Card($data, $cfg, [string]$errText, [switch]$NoBlock, [switch]$IsA
     $header = '深大电量 · ' + $cfg.campus + ' ' + $cfg.building + ' ' + $cfg.room
 
     $warnText = ''
+    $Script:stickyWarn = $false
+    $Script:stickyData = $null
+    # 预热用的透明卡片也会走一遍 Show-Card，不能让它把"预警已确认"写掉
+    $Script:warmCard = $Warm.IsPresent
     if ($errText) {
         $sub = '查询失败'
         $e2 = $errText -replace '&', '&amp;' -replace '<', '&lt;' -replace '>', '&gt;'
@@ -1028,6 +1036,15 @@ function Show-Card($data, $cfg, [string]$errText, [switch]$NoBlock, [switch]$IsA
                 else                  { $warnText += ('，约 {0} 天' -f $wTxt) }
             }
             $warnText += '。记得充值。'
+
+            # 同一个读数只粘一次：关过一次之后（充值延迟期间）就恢复按停留时间自动关
+            $ackD = if ($cfg.warnAckDate) { [string]$cfg.warnAckDate } else { '' }
+            $ackR = if ($null -ne $cfg.warnAckRemain) { [double]$cfg.warnAckRemain } else { -1.0 }
+            # 同一天、且没有比上次确认时更低（>0.5 度）→ 视为同一条预警，不再粘住
+            $sameData = ($ackD -eq [string]$last.Date) -and ([double]$last.Remain -ge ($ackR - 0.5))
+            $Script:stickyWarn = (-not $sameData) -and (-not $Script:warmCard)
+            $Script:stickyData = @{ Date = [string]$last.Date; Remain = [double]$last.Remain }
+            if ($Script:stickyWarn) { $warnText += '（这次不自动收，按 ✕ 关）' }
         }
 
         $series = $data.Series
@@ -1280,8 +1297,21 @@ function Show-Card($data, $cfg, [string]$errText, [switch]$NoBlock, [switch]$IsA
         } catch { SzuLog ('timer ERR: ' + $_.Exception.Message) }
     })
     $Script:cardTimer.Start()
-    # holdSeconds = 0 表示"不自动关"：不启动计时器，只能手动关
-    if ([int]$cfg.holdSeconds -le 0) { $Script:cardTimer.Stop() }
+    # 两种不自动关：用户选了"不自动关"(holdSeconds=0)；或这是还没被确认过的低电量预警
+    if ($Script:stickyWarn -or [int]$cfg.holdSeconds -le 0) { $Script:cardTimer.Stop() }
+
+    # 关窗口时记一笔"这条预警看过了"，同一个读数不再重复粘住（充值延迟期间也不会天天粘）
+    $w.Add_Closed({
+        try {
+            if ($Script:stickyWarn -and $Script:stickyData -and (-not $Script:warmCard)) {
+                $Script:cfg.warnAckDate = [string]$Script:stickyData.Date
+                $Script:cfg.warnAckRemain = [double]$Script:stickyData.Remain
+                Save-Config $Script:cfg
+                SzuLog ('warn acked: ' + $Script:stickyData.Date + ' ' + $Script:stickyData.Remain)
+            }
+        } catch { SzuLog ('ack ERR: ' + $_.Exception.Message) }
+        try { if ($Script:cardTimer) { $Script:cardTimer.Stop() } } catch { }
+    })
 
     if ($NoBlock) {
         $w.Add_Closed({ SzuLog 'card closed'; $Script:card = $null; if ($Script:cardTimer) { $Script:cardTimer.Stop() } })
@@ -1973,6 +2003,9 @@ while ($true) {
     }
     break
 }
+
+
+
 
 
 
