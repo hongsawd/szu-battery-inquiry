@@ -87,6 +87,7 @@ function Get-Palette([string]$theme) {
             InBg = '#FFF7F7F7';   InBorder = '#22000000'; InFg = '#E4000000'
             BtnBg = '#FF0F6CBD';  BtnFg = '#FFFFFFFF';     GhostFg = '#66000000'
             Err = '#FFC42B1C'
+            WarnBg = '#1FFFC42B1C'; WarnBr = '#66FFC42B1C'
             PillBg = '#0D000000'; PillFg = '#8A000000'; PillHover = '#14000000'
             PillSel = '#1A0F6CBD'; PillSelBorder = '#800F6CBD'; PillSelFg = '#FF0F6CBD'
             BtnHover = '#FF115EA8'
@@ -102,6 +103,7 @@ function Get-Palette([string]$theme) {
         InBg = '#14FFFFFF';   InBorder = '#33FFFFFF'; InFg = '#FFFFFFFF'
         BtnBg = '#FF4CC2FF';  BtnFg = '#FF101010';     GhostFg = '#B0FFFFFF'
         Err = '#FFFF6B6B'
+        WarnBg = '#26FF6B6B'; WarnBr = '#66FF6B6B'
         PillBg = '#1AFFFFFF'; PillFg = '#B0FFFFFF'; PillHover = '#2EFFFFFF'
         PillSel = '#2E4CC2FF'; PillSelBorder = '#804CC2FF'; PillSelFg = '#FFFFFFFF'
         BtnHover = '#FF6FD0FF'
@@ -179,7 +181,8 @@ function Read-Config {
             autostart   = if ($null -ne $o.autostart) { [bool]$o.autostart } else { $true }
             fastMode    = if ($null -ne $o.fastMode) { [bool]$o.fastMode } else { $true }
             scale       = if ($o.scale) { [double]$o.scale } else { 1.0 }
-            holdSeconds = if ($o.holdSeconds) { [int]$o.holdSeconds } else { 20 }
+            holdSeconds = if ($null -ne $o.holdSeconds) { [int]$o.holdSeconds } else { 20 }
+            warnBelow   = if ($null -ne $o.warnBelow) { [double]$o.warnBelow } else { 20 }
         }
     } catch { $null }
 }
@@ -413,7 +416,13 @@ function Show-Setup($cfg) {
         autostart = if ($cfg) { [bool]$cfg.autostart } else { $true }
         fastMode  = if ($cfg) { [bool]$cfg.fastMode } else { $true }
         scale     = if ($cfg -and $cfg.scale) { [double]$cfg.scale } else { 1.0 }
+        hold      = if ($cfg -and $null -ne $cfg.holdSeconds) { [int]$cfg.holdSeconds } else { 20 }
+        warnBelow = if ($cfg -and $null -ne $cfg.warnBelow) { [double]$cfg.warnBelow } else { 20 }
+        warnMode  = 'preset'
     }
+    # 值不在预设里就进"自定义"，否则用户看不到自己存的值
+    if (@(20, 45, 60, 180, 0) -notcontains [int]$Script:st.hold) { $Script:st.hold = 'custom' }
+    if (@(0, 10, 20, 30, 50) -notcontains [double]$Script:st.warnBelow) { $Script:st.warnMode = 'custom' }
     $Script:setupResult = $null
     $pal = Get-Palette $Script:st.theme
 
@@ -422,7 +431,7 @@ function Show-Setup($cfg) {
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ShowInTaskbar="True" Topmost="True" ResizeMode="NoResize" FocusVisualStyle="{x:Null}"
-        SizeToContent="Height" Width="400" WindowStartupLocation="CenterScreen"
+        SizeToContent="Height" Width="560" WindowStartupLocation="CenterScreen"
         FontFamily="Microsoft YaHei UI">
   <Border x:Name="card" CornerRadius="10" Background="%%CBG%%" BorderBrush="%%BORDER%%" BorderThickness="1" Padding="18,15,18,14">
     <Border.Effect>
@@ -437,24 +446,26 @@ function Show-Setup($cfg) {
       </StackPanel>
       <TextBlock x:Name="subTb" Text="填完保存，之后想改再点卡片上的齿轮" FontSize="10.5" Foreground="%%SUB%%" Margin="0,8,0,0"/>
 
-      <TextBlock x:Name="lblTheme" Text="主题" FontSize="10.5" Foreground="%%SUB%%" Margin="0,14,0,0"/>
-      <WrapPanel x:Name="themeRow" Margin="0,5,0,0"/>
+      <Grid Margin="0,2,0,0">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="18"/>
+          <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
 
-      <TextBlock x:Name="lblCampus" Text="校区" FontSize="10.5" Foreground="%%SUB%%" Margin="0,8,0,0"/>
-      <WrapPanel x:Name="campusRow" Margin="0,5,0,0"/>
+        <StackPanel Grid.Column="0">
+          <TextBlock x:Name="lblCampus" Text="校区" FontSize="10.5" Foreground="%%SUB%%" Margin="0,8,0,0"/>
+          <WrapPanel x:Name="campusRow" Margin="0,4,0,0"/>
 
-      <TextBlock x:Name="lblBuilding" Text="楼栋" FontSize="10.5" Foreground="%%SUB%%" Margin="0,8,0,0"/>
-      <WrapPanel x:Name="buildingRow" Margin="0,5,0,0"/>
+          <TextBlock x:Name="lblBuilding" Text="楼栋" FontSize="10.5" Foreground="%%SUB%%" Margin="0,6,0,0"/>
+          <WrapPanel x:Name="buildingRow" Margin="0,4,0,0"/>
 
-      <Grid Margin="0,10,0,0">
-        <StackPanel HorizontalAlignment="Left">
-          <TextBlock x:Name="lblRoom" Text="房间号（三位，如 101）" FontSize="10.5" Foreground="%%SUB%%"/>
-          <TextBox x:Name="roomTb" Width="112" Height="28" Margin="0,5,0,0" FontSize="12" Padding="8,4,8,4"
+          <TextBlock x:Name="lblRoom" Text="房间号（三位，如 101）" FontSize="10.5" Foreground="%%SUB%%" Margin="0,6,0,0"/>
+          <TextBox x:Name="roomTb" Width="112" Height="28" Margin="0,4,0,0" HorizontalAlignment="Left" FontSize="12" Padding="8,4,8,4"
                    Background="%%INBG%%" Foreground="%%INFG%%" BorderBrush="%%INBR%%" CaretBrush="%%INFG%%" BorderThickness="1"/>
-        </StackPanel>
-        <StackPanel HorizontalAlignment="Right" Width="200">
-          <TextBlock x:Name="lblHotkey" Text="快捷键（点框按下组合键）" FontSize="10.5" Foreground="%%SUB%%"/>
-          <Grid Margin="0,5,0,0">
+
+          <TextBlock x:Name="lblHotkey" Text="快捷键（点框按下组合键）" FontSize="10.5" Foreground="%%SUB%%" Margin="0,6,0,0"/>
+          <Grid Margin="0,4,0,0">
             <Grid.ColumnDefinitions>
               <ColumnDefinition Width="*"/>
               <ColumnDefinition Width="Auto"/>
@@ -467,16 +478,37 @@ function Show-Setup($cfg) {
             </Border>
           </Grid>
         </StackPanel>
+
+        <StackPanel Grid.Column="2">
+          <TextBlock x:Name="lblTheme" Text="主题" FontSize="10.5" Foreground="%%SUB%%" Margin="0,8,0,0"/>
+          <WrapPanel x:Name="themeRow" Margin="0,4,0,0"/>
+
+          <TextBlock x:Name="lblAuto" Text="开机自启（后台待命 + 热键）" FontSize="10.5" Foreground="%%SUB%%" Margin="0,6,0,0"/>
+          <WrapPanel x:Name="autoRow" Margin="0,4,0,0"/>
+
+          <TextBlock x:Name="lblMem" Text="后台内存" FontSize="10.5" Foreground="%%SUB%%" Margin="0,6,0,0"/>
+          <WrapPanel x:Name="memRow" Margin="0,4,0,0"/>
+
+          <TextBlock x:Name="lblScale" Text="卡片大小" FontSize="10.5" Foreground="%%SUB%%" Margin="0,6,0,0"/>
+          <WrapPanel x:Name="scaleRow" Margin="0,4,0,0"/>
+
+          <TextBlock x:Name="lblHold" Text="卡片停留（多久自动消失）" FontSize="10.5" Foreground="%%SUB%%" Margin="0,6,0,0"/>
+          <WrapPanel x:Name="holdRow" Margin="0,4,0,0"/>
+          <StackPanel x:Name="holdCustom" Orientation="Horizontal" Margin="0,1,0,0" Visibility="Collapsed">
+            <TextBox x:Name="holdTb" Width="64" FontSize="11.5" Padding="6,4,6,5"
+                     Background="%%INBG%%" Foreground="%%INFG%%" BorderBrush="%%INBR%%" BorderThickness="1"/>
+            <TextBlock Text="秒（1 - 3600）" FontSize="10" Foreground="%%SUB%%" VerticalAlignment="Center" Margin="7,0,0,0"/>
+          </StackPanel>
+
+          <TextBlock x:Name="lblWarn" Text="低电量预警（低于设定值就提醒）" FontSize="10.5" Foreground="%%SUB%%" Margin="0,6,0,0"/>
+          <WrapPanel x:Name="warnRow" Margin="0,4,0,0"/>
+          <StackPanel x:Name="warnCustom" Orientation="Horizontal" Margin="0,1,0,0" Visibility="Collapsed">
+            <TextBox x:Name="warnTb2" Width="64" FontSize="11.5" Padding="6,4,6,5"
+                     Background="%%INBG%%" Foreground="%%INFG%%" BorderBrush="%%INBR%%" BorderThickness="1"/>
+            <TextBlock Text="度（1 - 999）" FontSize="10" Foreground="%%SUB%%" VerticalAlignment="Center" Margin="7,0,0,0"/>
+          </StackPanel>
+        </StackPanel>
       </Grid>
-
-      <TextBlock x:Name="lblAuto" Text="开机自启（后台待命 + 全局热键）" FontSize="10.5" Foreground="%%SUB%%" Margin="0,12,0,0"/>
-      <WrapPanel x:Name="autoRow" Margin="0,5,0,0"/>
-
-      <TextBlock x:Name="lblMem" Text="后台内存（极速 = 预加载界面，省内存 = 用时才加载）" FontSize="10.5" Foreground="%%SUB%%" Margin="0,10,0,0"/>
-      <WrapPanel x:Name="memRow" Margin="0,5,0,0"/>
-
-      <TextBlock x:Name="lblScale" Text="卡片大小" FontSize="10.5" Foreground="%%SUB%%" Margin="0,10,0,0"/>
-      <WrapPanel x:Name="scaleRow" Margin="0,5,0,0"/>
 
       <TextBlock x:Name="warnTb" FontSize="10" Foreground="%%ERR%%" Margin="0,7,0,0" TextWrapping="Wrap" Visibility="Collapsed"/>
       <TextBlock x:Name="tipTb" Text="支持 Ctrl / Alt / Shift / Win 任意组合（如 Win+Alt+E）；清空 = 不设热键。热键由常驻小进程接管，托盘图标右键可退出。" FontSize="9.5" Foreground="%%SUB%%" Margin="0,8,0,0" TextWrapping="Wrap"/>
@@ -516,8 +548,8 @@ function Show-Setup($cfg) {
     function New-Pill([string]$text, [string]$value) {
         $bd = New-Object System.Windows.Controls.Border
         $bd.CornerRadius = New-Object System.Windows.CornerRadius(12)
-        $bd.Padding      = New-Object System.Windows.Thickness(11,4,11,5)
-        $bd.Margin       = New-Object System.Windows.Thickness(0,0,6,6)
+        $bd.Padding      = New-Object System.Windows.Thickness(10,3,10,4)
+        $bd.Margin       = New-Object System.Windows.Thickness(0,0,6,4)
         $bd.BorderThickness = New-Object System.Windows.Thickness(1)
         $bd.Cursor = 'Hand'
         $bd.Tag = $value
@@ -545,6 +577,8 @@ function Show-Setup($cfg) {
             'autoRow'     = $(if ($Script:st.autostart) { '1' } else { '0' })
             'memRow'      = $(if ($Script:st.fastMode) { '1' } else { '0' })
             'scaleRow'    = ([double]$Script:st.scale).ToString('0.##', [System.Globalization.CultureInfo]::InvariantCulture)
+            'holdRow'     = $(if ("$($Script:st.hold)" -eq 'custom') { 'custom' } else { [string][int]$Script:st.hold })
+            'warnRow'     = $(if ("$($Script:st.warnMode)" -eq 'custom') { 'custom' } else { ([double]$Script:st.warnBelow).ToString('0', [System.Globalization.CultureInfo]::InvariantCulture) })
         }
         foreach ($k in $rows.Keys) {
             $row = $Script:win.FindName($k)
@@ -697,7 +731,7 @@ function Show-Setup($cfg) {
     }
 
     # 开机自启开关
-    foreach ($a in @(@('1', '开（后台待命 + 热键）'), @('0', '关（只手动点开）'))) {
+    foreach ($a in @(@('1', '开（后台待命）'), @('0', '关（只手动打开）'))) {
         $bd = New-Pill $a[1] $a[0]
         $bd.Add_MouseLeftButtonDown({
             param($s, $e)
@@ -709,7 +743,7 @@ function Show-Setup($cfg) {
     }
 
     # 后台内存模式
-    foreach ($m in @(@('1', '极速（约 165 MB）'), @('0', '省内存（约 85 MB，首次多 0.5 秒）'))) {
+    foreach ($m in @(@('1', '极速（165 MB）'), @('0', '省内存（85 MB）'))) {
         $bd = New-Pill $m[1] $m[0]
         $bd.Add_MouseLeftButtonDown({
             param($s, $e)
@@ -728,6 +762,58 @@ function Show-Setup($cfg) {
             Update-Pills
         })
         [void]$Script:win.FindName('scaleRow').Children.Add($bd)
+    }
+
+    # 卡片停留时长（0 = 不自动关；custom = 用输入框的秒数）
+    foreach ($hh in @(@('20', '20 秒'), @('45', '45 秒'), @('60', '1 分钟'), @('180', '3 分钟'), @('0', '不自动关'), @('custom', '自定义'))) {
+        $bd = New-Pill $hh[1] $hh[0]
+        $bd.Add_MouseLeftButtonDown({
+            param($s, $e)
+            $v = [string]$s.Tag
+            if ($v -eq 'custom') {
+                $Script:st.hold = 'custom'
+                $Script:win.FindName('holdCustom').Visibility = 'Visible'
+                $tb = $Script:win.FindName('holdTb')
+                if (-not $tb.Text) { $tb.Text = '30' }
+                [void]$tb.Focus()
+            } else {
+                $Script:st.hold = [int]$v
+                $Script:win.FindName('holdCustom').Visibility = 'Collapsed'
+            }
+            Update-Pills
+        })
+        [void]$Script:win.FindName('holdRow').Children.Add($bd)
+    }
+
+    # 低电量预警阈值（0 = 关；custom = 用输入框）
+    foreach ($ww in @(@('0', '关'), @('10', '10 度'), @('20', '20 度'), @('30', '30 度'), @('50', '50 度'), @('custom', '自定义'))) {
+        $bd = New-Pill $ww[1] $ww[0]
+        $bd.Add_MouseLeftButtonDown({
+            param($s, $e)
+            $v = [string]$s.Tag
+            if ($v -eq 'custom') {
+                $Script:st.warnMode = 'custom'
+                $Script:win.FindName('warnCustom').Visibility = 'Visible'
+                $tb = $Script:win.FindName('warnTb2')
+                if (-not $tb.Text) { $tb.Text = '15' }
+                [void]$tb.Focus()
+            } else {
+                $Script:st.warnMode = 'preset'
+                $Script:st.warnBelow = [double]::Parse($v, [System.Globalization.CultureInfo]::InvariantCulture)
+                $Script:win.FindName('warnCustom').Visibility = 'Collapsed'
+            }
+            Update-Pills
+        })
+        [void]$Script:win.FindName('warnRow').Children.Add($bd)
+    }
+    # 打开时如果存的是自定义值，把输入框亮出来并填好
+    if ("$($Script:st.hold)" -eq 'custom') {
+        $Script:win.FindName('holdCustom').Visibility = 'Visible'
+        $Script:win.FindName('holdTb').Text = [string][int]$(if ($cfg) { $cfg.holdSeconds } else { 30 })
+    }
+    if ("$($Script:st.warnMode)" -eq 'custom') {
+        $Script:win.FindName('warnCustom').Visibility = 'Visible'
+        $Script:win.FindName('warnTb2').Text = ([double]$Script:st.warnBelow).ToString('0.#', $Script:Inv)
     }
 
     $Script:win.FindName('roomTb').Text = $Script:st.room
@@ -850,6 +936,35 @@ function Show-Setup($cfg) {
             $err.Visibility = 'Visible'
             return
         }
+        # 停留时长：预设直接用；自定义要校验 1-3600
+        $holdVal = 0
+        if ("$($Script:st.hold)" -eq 'custom') {
+            $holdTxt = ([string]$Script:win.FindName('holdTb').Text).Trim()
+            $tmp = 0
+            if (-not [int]::TryParse($holdTxt, [ref]$tmp)) { $tmp = 0 }
+            if ($tmp -lt 1 -or $tmp -gt 3600) {
+                $err.Text = '自定义停留时间要填 1 - 3600 之间的秒数'
+                $err.Visibility = 'Visible'
+                return
+            }
+            $holdVal = $tmp
+        } else {
+            $holdVal = [int]$Script:st.hold
+        }
+
+        # 预警阈值：自定义要校验 1-999
+        $warnVal = [double]$Script:st.warnBelow
+        if ("$($Script:st.warnMode)" -eq 'custom') {
+            $warnTxt2 = ([string]$Script:win.FindName('warnTb2').Text).Trim()
+            $wtmp = 0
+            if (-not [int]::TryParse($warnTxt2, [ref]$wtmp) -or $wtmp -lt 1 -or $wtmp -gt 999) {
+                $err.Text = '自定义预警阈值要填 1 - 999 之间的度数'
+                $err.Visibility = 'Visible'
+                return
+            }
+            $warnVal = [double]$wtmp
+        }
+
         $Script:setupResult = @{
             theme       = $Script:st.theme
             campus      = $Script:st.campus
@@ -861,7 +976,8 @@ function Show-Setup($cfg) {
             autostart   = [bool]$Script:st.autostart
             fastMode    = [bool]$Script:st.fastMode
             scale       = [double]$Script:st.scale
-            holdSeconds = if ($cfg -and $cfg.holdSeconds) { $cfg.holdSeconds } else { 20 }
+            holdSeconds = $holdVal
+            warnBelow   = $warnVal
         }
         $Script:win.Close()
     })
@@ -882,6 +998,7 @@ function Show-Card($data, $cfg, [string]$errText, [switch]$NoBlock, [switch]$IsA
     $Script:cardResult = 'close'
     $header = '深大电量 · ' + $cfg.campus + ' ' + $cfg.building + ' ' + $cfg.room
 
+    $warnText = ''
     if ($errText) {
         $sub = '查询失败'
         $e2 = $errText -replace '&', '&amp;' -replace '<', '&lt;' -replace '>', '&gt;'
@@ -897,6 +1014,21 @@ function Show-Card($data, $cfg, [string]$errText, [switch]$NoBlock, [switch]$IsA
         $sub = '数据 ' + $last.Date
         if ($data.Avg -gt 0) { $sub += ('  ·  约还可用 {0} 天' -f [math]::Floor($last.Remain / $data.Avg)) }
         if ($data.Recharge -gt 0.01) { $sub += ('  ·  刚充了 {0} 度' -f $data.Recharge.ToString('0.##', $Script:Inv)) }
+
+        # 低电量预警：阈值按"够两晚空调"来定，默认 20 度（日均约 12 度 → 约 1.6 天）
+        $wb = 0.0
+        try { $wb = [double]$cfg.warnBelow } catch { }
+        if ($wb -gt 0 -and $last.Remain -lt $wb) {
+            $warnText = ('⚠ 电量偏低：{0} 度' -f $last.Remain.ToString('0.0', $Script:Inv))
+            if ($data.Avg -gt 0) {
+                $wDays = [math]::Round($last.Remain / $data.Avg, 1)
+                $wTxt = $wDays.ToString('0.#', $Script:Inv)
+                if ($wDays -lt 2)     { $warnText += ('，约 {0} 天，今晚的空调可能就撑不过去了' -f $wTxt) }
+                elseif ($wDays -lt 4) { $warnText += ('，约 {0} 天，撑不过两晚空调' -f $wTxt) }
+                else                  { $warnText += ('，约 {0} 天' -f $wTxt) }
+            }
+            $warnText += '。记得充值。'
+        }
 
         $series = $data.Series
         $cw = 344.0; $topY = 24.0; $botY = 64.0; $padL = 36.0; $padR = 10.0
@@ -977,6 +1109,7 @@ function Show-Card($data, $cfg, [string]$errText, [switch]$NoBlock, [switch]$IsA
       <DropShadowEffect BlurRadius="20" ShadowDepth="2" Direction="270" Opacity="%%SHADOW%%" Color="#000000"/>
     </Border.Effect>
     <StackPanel>
+%%WARN%%
       <Grid>
         <StackPanel Orientation="Horizontal">
           <Border Width="28" Height="28" CornerRadius="7" Background="%%ICONBG%%" VerticalAlignment="Top">
@@ -1045,6 +1178,17 @@ function Show-Card($data, $cfg, [string]$errText, [switch]$NoBlock, [switch]$IsA
 '@
 
     $xaml = $xaml.Replace('%%HEADER%%', $header).Replace('%%SUBTXT%%', $sub).Replace('%%BODY%%', $body)
+    $warnXaml = ''
+    if ($warnText) {
+        $we = $warnText -replace '&', '&amp;' -replace '<', '&lt;' -replace '>', '&gt;'
+        $warnXaml = @"
+      <Border CornerRadius="6" Background="%%WARNBG%%" BorderBrush="%%WARNBR%%" BorderThickness="1" Padding="9,6,9,7" Margin="0,0,0,10">
+        <TextBlock Text="$we" Foreground="%%WARNFG%%" FontSize="11.5" TextWrapping="Wrap"/>
+      </Border>
+"@
+        $warnXaml = $warnXaml.Replace('%%WARNBG%%', $p.WarnBg).Replace('%%WARNBR%%', $p.WarnBr).Replace('%%WARNFG%%', $p.Err)
+    }
+    $xaml = $xaml.Replace('%%WARN%%', $warnXaml)
     $xaml = $xaml.Replace('%%CBG%%', $p.CardBg).Replace('%%BORDER%%', $p.Border).Replace('%%SHADOW%%', $p.Shadow)
     $xaml = $xaml.Replace('%%ICONBG%%', $p.IconBg).Replace('%%ACCENT%%', $p.Accent).Replace('%%TITLE%%', $p.Title)
     $xaml = $xaml.Replace('%%SUB2%%', $p.Sub).Replace('%%CHIPBG%%', $p.ChipBg).Replace('%%CHIPFG%%', $p.ChipFg)
@@ -1061,6 +1205,7 @@ function Show-Card($data, $cfg, [string]$errText, [switch]$NoBlock, [switch]$IsA
             ('平均用电 ' + $avgTxt + ' 度'),
             ($sub -replace '\s+·\s+', ' · ')
         ) -join "`r`n")
+        if ($warnText) { $Script:cardPlain = $warnText + "`r`n" + $Script:cardPlain }
     }
 
     $w = [Windows.Markup.XamlReader]::Parse($xaml)
@@ -1135,6 +1280,8 @@ function Show-Card($data, $cfg, [string]$errText, [switch]$NoBlock, [switch]$IsA
         } catch { SzuLog ('timer ERR: ' + $_.Exception.Message) }
     })
     $Script:cardTimer.Start()
+    # holdSeconds = 0 表示"不自动关"：不启动计时器，只能手动关
+    if ([int]$cfg.holdSeconds -le 0) { $Script:cardTimer.Stop() }
 
     if ($NoBlock) {
         $w.Add_Closed({ SzuLog 'card closed'; $Script:card = $null; if ($Script:cardTimer) { $Script:cardTimer.Stop() } })
@@ -1710,6 +1857,19 @@ function Run-Agent {
         SzuLog 'low-mem mode: WPF on demand'
     }
 
+    # 低电量预警：常驻启动后（开机自启最常见）如果剩余已低于阈值，主动弹一次
+    try {
+        $wb0 = [double]$Script:cfg.warnBelow
+        if ($wb0 -gt 0) {
+            $c0 = Read-Cache
+            if ($c0 -and [double]$c0.Last.Remain -lt $wb0) {
+                SzuLog ('low power at start: ' + $c0.Last.Remain)
+                $disp0 = [System.Windows.Threading.Dispatcher]::CurrentDispatcher
+                [void]$disp0.BeginInvoke([action]{ Show-Quick })
+            } else { SzuLog 'power OK at start' }
+        }
+    } catch { SzuLog ('startup warn ERR: ' + $_.Exception.Message) }
+
     [System.Windows.Threading.Dispatcher]::Run()
 }
 
@@ -1813,6 +1973,7 @@ while ($true) {
     }
     break
 }
+
 
 
 
