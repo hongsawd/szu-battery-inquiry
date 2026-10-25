@@ -61,7 +61,7 @@ open 深大电量.app          # 启动
   "campus": "南校区",
   "client": "192.168.84.110",
   "building": "冬筑3-6楼",
-  "room": "101",
+  "room": "520",
   "hotkey": "CTRL + ALT + E",
   "autostart": true,
   "holdSeconds": 20,
@@ -75,4 +75,5 @@ open 深大电量.app          # 启动
 - **首次打开会被 Gatekeeper 拦**：没有签名和公证，右键 →「打开」，或 `xattr -dr com.apple.quarantine 深大电量.app`。
 - 服务端一次最多回 20 条记录，所以仍然分两段抓（近 20 天 + 再往前 15 天）。
 - 没有历史流水文件，只有最近一次缓存；Windows 版有的 `history.csv` 这版还没做。
+
 

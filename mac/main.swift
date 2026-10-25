@@ -1,4 +1,4 @@
-// 深大电量 · macOS 版（菜单栏）
+﻿// 深大电量 · macOS 版（菜单栏）
 // 数据来源：校内电控系统 http://192.168.84.3:9090/cgcSims/
 //
 // 编译：./build.sh          产物：深大电量.app
@@ -216,7 +216,7 @@ enum SzuAPI {
     static func snapshot(cfg: [String: Any]) throws -> Snapshot {
         let client = cfgString(cfg, "client", "192.168.84.110")
         let building = cfgString(cfg, "building", "冬筑3-6楼")
-        let room = cfgString(cfg, "room", "101")
+        let room = cfgString(cfg, "room", "520")
         var roomId = cfgString(cfg, "roomId", "")
 
         if roomId.isEmpty {
@@ -521,7 +521,7 @@ struct SettingsView: View {
                 }.labelsHidden().frame(width: 240)
             }
             row("房间号") {
-                TextField("三位，如 101", text: $room).textFieldStyle(.roundedBorder).frame(width: 120)
+                TextField("三位，如 520", text: $room).textFieldStyle(.roundedBorder).frame(width: 120)
             }
             row("快捷键") {
                 TextField("CTRL + ALT + E（留空 = 不设）", text: $hotkey).textFieldStyle(.roundedBorder)
@@ -771,7 +771,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self = self else { return "内部错误" }
                 var p = payload
                 let room = (p["room"] as? String ?? "").trimmingCharacters(in: .whitespaces)
-                guard room.count == 3 else { return "房间号要三位，例如 101" }
+                guard room.count == 3 else { return "房间号要三位，例如 520" }
                 p["room"] = room
                 p["client"] = cfgString(Model.shared.cfg, "client", "192.168.84.110")
                 do {
@@ -973,3 +973,4 @@ let delegate = AppDelegate()
 AppDelegate.current = delegate
 app.delegate = delegate
 app.run()
+

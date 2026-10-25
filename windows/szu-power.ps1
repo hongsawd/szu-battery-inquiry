@@ -462,7 +462,7 @@ function Show-Setup($cfg) {
           <TextBlock x:Name="lblBuilding" Text="楼栋" FontSize="10.5" Foreground="%%SUB%%" Margin="0,6,0,0"/>
           <WrapPanel x:Name="buildingRow" Margin="0,4,0,0"/>
 
-          <TextBlock x:Name="lblRoom" Text="房间号（三位，如 101）" FontSize="10.5" Foreground="%%SUB%%" Margin="0,6,0,0"/>
+          <TextBlock x:Name="lblRoom" Text="房间号（三位，如 520）" FontSize="10.5" Foreground="%%SUB%%" Margin="0,6,0,0"/>
           <TextBox x:Name="roomTb" Width="112" Height="28" Margin="0,4,0,0" HorizontalAlignment="Left" FontSize="12" Padding="8,4,8,4"
                    Background="%%INBG%%" Foreground="%%INFG%%" BorderBrush="%%INBR%%" CaretBrush="%%INFG%%" BorderThickness="1"/>
 
@@ -924,7 +924,7 @@ function Show-Setup($cfg) {
         $err = $Script:win.FindName('errTb')
         $room = $Script:st.room
         if (-not $Script:st.building) { $err.Text = '选一个楼栋'; $err.Visibility = 'Visible'; return }
-        if ($room -notmatch '^\d{3,4}$') { $err.Text = '房间号填三位数，比如 101'; $err.Visibility = 'Visible'; return }
+        if ($room -notmatch '^\d{3,4}$') { $err.Text = '房间号填三位数，比如 520'; $err.Visibility = 'Visible'; return }
 
         # 冲突只提示，不拦着保存
         Update-HotkeyWarning
@@ -1953,7 +1953,7 @@ if ($Demo) {
         )
         DayUse = 7.20; Recharge = 0; Avg = 7.50; AvgDays = 31; Days = 32; RoomId = '0'
     }
-    $demoCfg = @{ theme = 'dark'; campus = '南校区'; building = '冬筑3-6楼'; room = '101'; hotkey = ''; holdSeconds = 8 }
+    $demoCfg = @{ theme = 'dark'; campus = '南校区'; building = '冬筑3-6楼'; room = '520'; hotkey = ''; holdSeconds = 8 }
     [void](Show-Card $fake $demoCfg $null)
     exit 0
 }
@@ -2003,6 +2003,7 @@ while ($true) {
     }
     break
 }
+
 
 
 
