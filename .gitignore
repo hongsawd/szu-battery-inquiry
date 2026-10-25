@@ -10,3 +10,5 @@ mac/*.app
 mac/深大电量.app
 mac/深大电量-mac.zip
 mac/*.icns
+windows/preview.png
+windows/*.log
