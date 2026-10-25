@@ -1,4 +1,4 @@
-# 深大宿舍电量查询
+﻿# 深大宿舍电量查询
 
 深圳大学宿舍电表查询，做成桌面小卡片：剩余电量、昨日用电、近 5 天折线图、预估还可用几天，电量低了会提醒。
 
@@ -6,14 +6,14 @@
 
 | 平台 | 形态 | 目录 | 说明 |
 |---|---|---|---|
-| Windows 10/11 | 右下角浮出卡片 + 托盘 + 全局热键 | [`windows/`](windows/) | PowerShell + WPF，免安装、不打包 exe |
-| macOS 11+ | 菜单栏图标 + 弹出面板 + 全局热键 | [`mac/`](mac/) | Swift / AppKit + SwiftUI，Intel 与 Apple Silicon 通用 |
+| **Windows 版**（10/11） | 右下角浮出卡片 + 托盘 + 全局热键 | [`windows/`](windows/) | PowerShell + WPF，免安装、不打包 exe |
+| **Mac 版**（macOS 11+） | 菜单栏图标 + 弹出面板 + 全局热键 | [`mac/`](mac/) | Swift / AppKit + SwiftUI，Intel 与 Apple Silicon 通用 |
 
 ![电量卡片](docs/preview-card.png)
 
 ## 安装
 
-### Windows
+### Windows 版
 
 1. 下载本仓库（`Code → Download ZIP`），解压到任意目录
 2. 双击 `windows/安装.bat`
@@ -21,7 +21,7 @@
 
 之后按热键（默认 `Ctrl+Alt+E`）出卡片，托盘图标右键有菜单。细节见 [`windows/README.md`](windows/README.md)。
 
-### macOS
+### Mac 版
 
 1. 下载 Actions 里构建好的 `深大电量-mac.zip`（[Actions 页面](https://github.com/hongsawd/szu-battery-inquiry/actions) → 最新一次运行 → Artifacts），或自己编：
 
@@ -61,3 +61,4 @@ docs/       预览图
 ## 免责
 
 只查自己宿舍的电量，不涉及任何账号密码（那套系统靠「在校园网内」放行）。接口是校方公开网页用的接口，脚本只是把人工点两下的操作自动化了。用的人多可能给电控系统带来压力，请自觉把刷新频率放低。
+

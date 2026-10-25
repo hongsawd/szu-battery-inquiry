@@ -1,4 +1,4 @@
-# 深大电量 · macOS 版
+﻿# 深大电量 · Mac 版
 
 Windows 版是 PowerShell + WPF，macOS 上没有这两样东西，所以这版是**重新写的一个原生菜单栏程序**（Swift / AppKit + SwiftUI），数据接口和口径跟 Windows 版完全一致。
 
@@ -34,7 +34,7 @@ open 深大电量.app          # 启动
 
 ## 和 Windows 版的差异
 
-| 项 | Windows | macOS |
+| 项 | Windows 版 | Mac 版 |
 |---|---|---|
 | 形态 | 右下角浮出卡片 + 托盘 | 菜单栏图标 + 弹出面板 |
 | 全局热键 | RegisterHotKey | Carbon `RegisterEventHotKey`（同样支持 Ctrl/Alt/Shift/Command 组合） |
@@ -75,3 +75,4 @@ open 深大电量.app          # 启动
 - **首次打开会被 Gatekeeper 拦**：没有签名和公证，右键 →「打开」，或 `xattr -dr com.apple.quarantine 深大电量.app`。
 - 服务端一次最多回 20 条记录，所以仍然分两段抓（近 20 天 + 再往前 15 天）。
 - 没有历史流水文件，只有最近一次缓存；Windows 版有的 `history.csv` 这版还没做。
+
