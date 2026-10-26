@@ -19,7 +19,7 @@
 2. 双击 `windows/安装.bat`
 3. 跟着向导填：主题 / 校区 / 楼栋 / 房间号 / 快捷键
 
-之后按热键（默认 `Ctrl+Alt+E`）出卡片，托盘图标右键有菜单。细节见 [`windows/README.md`](windows/README.md)。
+之后按热键（默认 `Ctrl+Alt+E`）出卡片，托盘图标右键有菜单。不要了双击 `windows/卸载.bat`（可先跑 `卸载.bat /check` 看会删什么）。细节见 [`windows/README.md`](windows/README.md)。
 
 ### Mac 版
 
@@ -33,7 +33,7 @@
 2. 首次打开要右键 →「打开」（没做签名公证）
 3. 菜单栏出现 ⚡，点一下出卡片；配置在首次启动时填
 
-细节见 [`mac/README.md`](mac/README.md)。
+不要了跑 `mac/uninstall.command`。细节见 [`mac/README.md`](mac/README.md)。
 
 ## 原理
 
@@ -61,4 +61,5 @@ docs/       预览图
 ## 免责
 
 只查自己宿舍的电量，不涉及任何账号密码（那套系统靠「在校园网内」放行）。接口是校方公开网页用的接口，脚本只是把人工点两下的操作自动化了。用的人多可能给电控系统带来压力，请自觉把刷新频率放低。
+
 

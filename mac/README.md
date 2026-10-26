@@ -69,11 +69,32 @@ open 深大电量.app          # 启动
 }
 ```
 
+## 卸载
+
+双击 `uninstall.command`（或在终端里 `./uninstall.command`）。只看不删：
+
+```bash
+./uninstall.command --check
+```
+
+这版在 macOS 上只留四类东西，卸载就是删它们：
+
+| 痕迹 | 位置 |
+|---|---|
+| 登录项 | `~/Library/LaunchAgents/com.hongsawd.szupower.plist` |
+| 配置与缓存 | `~/Library/Application Support/szu-power/` |
+| 偏好设置域 | `~/Library/Preferences/com.hongsawd.szupower.plist` |
+| 程序本体 | `深大电量.app`（放哪就在哪，脚本会找三个常见位置） |
+
+脚本会先 `launchctl bootout` 卸掉登录项、`pkill` 停掉进程，再逐项删除；可以选择保留 `config.json`，重装还是原来的房间号。
+
+和 Windows 版一样：**没有系统级服务、没有内核扩展、没有开机脚本**，删干净就是删文件。
 ## 已知限制
 
 - **必须连校园网**：`192.168.84.3` 是校内地址，外网访问不到（跟 Windows 版一样）。
 - **首次打开会被 Gatekeeper 拦**：没有签名和公证，右键 →「打开」，或 `xattr -dr com.apple.quarantine 深大电量.app`。
 - 服务端一次最多回 20 条记录，所以仍然分两段抓（近 20 天 + 再往前 15 天）。
 - 没有历史流水文件，只有最近一次缓存；Windows 版有的 `history.csv` 这版还没做。
+
 
 
