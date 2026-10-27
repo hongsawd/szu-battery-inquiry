@@ -114,12 +114,29 @@ enum SzuError: LocalizedError {
 }
 
 enum SzuAPI {
-    static let base = "http://192.168.84.3:9090/cgcSims"
+    // 服务器地址不写死：按 配置里的 server → 上次成功的 → 内置候选 依次试。
+    // 宿舍区 WiFi、教学区 WiFi、校内 VPN 走的是同一台，只有学校换网段才需要手填。
+    static let candidates = ["192.168.84.3:9090", "192.168.84.2:9090"]
+    static var cfgRef: [String: Any] = [:]
+    static var workingHost: String?
 
-    static func call(_ path: String, _ body: String?) throws -> String {
+    static func hostCandidates() -> [String] {
+        var list: [String] = []
+        if let s = cfgRef["server"] as? String, !s.isEmpty {
+            list += s.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        }
+        if let used = cfgRef["serverUsed"] as? String, !used.isEmpty { list.append(used) }
+        if let w = workingHost { list.insert(w, at: 0) }
+        list += candidates
+        var seen = Set<String>()
+        return list.filter { !$0.isEmpty && seen.insert($0).inserted }
+    }
+
+    static func callOn(_ host: String, _ path: String, _ body: String?) throws -> String {
+        let base = "http://" + host + "/cgcSims"
         guard let url = URL(string: base + path) else { throw SzuError.http("地址不对") }
         var req = URLRequest(url: url)
-        req.timeoutInterval = 20
+        req.timeoutInterval = 8
         req.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
         req.setValue(base + "/login.do", forHTTPHeaderField: "Referer")
         if let b = body {
@@ -140,13 +157,32 @@ enum SzuAPI {
             guard let d = data else { result = .failure(SzuError.http("没有返回内容")); return }
             result = .success(GBK.decode(d))
         }.resume()
-        _ = sem.wait(timeout: .now() + 25)
+        _ = sem.wait(timeout: .now() + 12)
 
         switch result {
         case .success(let s): return s
         case .failure(let e): throw e
-        case .none: throw SzuError.http("连不上电控系统（要在校园网内）")
+        case .none: throw SzuError.http("连不上 " + host)
         }
+    }
+
+    /// 依次试候选地址；第一个通的记住，下次先试它
+    static func call(_ path: String, _ body: String?) throws -> String {
+        var lastError: Error = SzuError.http("连不上电控系统（要在校园网内）")
+        for host in hostCandidates() {
+            do {
+                let s = try callOn(host, path, body)
+                if workingHost != host {
+                    workingHost = host
+                    cfgRef["serverUsed"] = host
+                    Store.shared.saveConfig(cfgRef)
+                }
+                return s
+            } catch {
+                lastError = error
+            }
+        }
+        throw lastError
     }
 
     static func buildings(client: String) throws -> [(id: String, name: String)] {
@@ -214,6 +250,7 @@ enum SzuAPI {
     // MARK: 组装
 
     static func snapshot(cfg: [String: Any]) throws -> Snapshot {
+        cfgRef = cfg
         let client = cfgString(cfg, "client", "192.168.84.110")
         let building = cfgString(cfg, "building", "冬筑3-6楼")
         let room = cfgString(cfg, "room", "520")
@@ -476,6 +513,7 @@ struct SettingsView: View {
     @State var building: String
     @State var room: String
     @State var hotkey: String
+    @State var server: String
     @State var autostart: Bool
     @State var holdSeconds: Double
     @State var warnBelow: Double
@@ -526,6 +564,10 @@ struct SettingsView: View {
             row("快捷键") {
                 TextField("CTRL + ALT + E（留空 = 不设）", text: $hotkey).textFieldStyle(.roundedBorder)
             }
+            row("服务器") {
+                TextField("留空 = 自动探测（如 192.168.84.3:9090）", text: $server)
+                    .textFieldStyle(.roundedBorder)
+            }
             row("开机自启") {
                 Toggle("登录时启动，常驻菜单栏", isOn: $autostart).toggleStyle(.checkbox)
             }
@@ -561,7 +603,7 @@ struct SettingsView: View {
                     let wb = Double(warnText.trimmingCharacters(in: .whitespaces)) ?? warnBelow
                     let payload: [String: Any] = [
                         "theme": theme, "campus": campus, "building": building, "room": room,
-                        "hotkey": hotkey, "autostart": autostart,
+                        "hotkey": hotkey, "autostart": autostart, "server": server,
                         "holdSeconds": Int(holdSeconds), "warnBelow": wb
                     ]
                     if let err = onSave(payload) { status = err } else { status = "" }
@@ -762,6 +804,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             building: cfgString(cfg, "building", "冬筑3-6楼"),
             room: cfgString(cfg, "room", ""),
             hotkey: cfgString(cfg, "hotkey", "CTRL + ALT + E"),
+            server: cfgString(cfg, "server", ""),
             autostart: cfgBool(cfg, "autostart", true),
             holdSeconds: cfgDouble(cfg, "holdSeconds", 20),
             warnBelow: cfgDouble(cfg, "warnBelow", 20),
@@ -782,6 +825,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
                 p["warnAckDate"] = cfgString(Model.shared.cfg, "warnAckDate", "")
                 p["warnAckRemain"] = cfgDouble(Model.shared.cfg, "warnAckRemain", -1)
+                p["serverUsed"] = cfgString(Model.shared.cfg, "serverUsed", "")
                 Model.shared.cfg = p
                 Store.shared.saveConfig(p)
                 self.applyLoginItem(p["autostart"] as? Bool ?? true)
@@ -973,4 +1017,5 @@ let delegate = AppDelegate()
 AppDelegate.current = delegate
 app.delegate = delegate
 app.run()
+
 
