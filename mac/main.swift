@@ -1,4 +1,4 @@
-﻿// 深大电量 · macOS 版（菜单栏）
+// 深大电量 · macOS 版（菜单栏）
 // 数据来源：校内电控系统 http://192.168.84.3:9090/cgcSims/
 //
 // 编译：./build.sh          产物：深大电量.app
@@ -210,15 +210,22 @@ enum SzuAPI {
         return v
     }
 
-    /// 服务端单次最多回 20 条，所以分两段抓
+    /// 服务端每页 19 条，用 ?pageNo=N 翻页；能翻到几个月前
     static func rows(client: String, roomId: String, room: String, from: Date, to: Date) throws -> [Row] {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd"
         f.locale = Locale(identifier: "en_US_POSIX")
-        let body = "hiddenType=&isHost=&beginTime=\(f.string(from: from))&endTime=\(f.string(from: to))"
+        let body = "hiddenType=&isHost=0&beginTime=\(f.string(from: from))&endTime=\(f.string(from: to))"
             + "&type=2&client=\(client)&roomId=\(roomId)&roomName=\(GBK.percent(room))&building="
-        let html = try call("/selectList.do", body)
-        return parseRows(html)
+        var byDate: [String: Row] = [:]
+        for page in 1...12 {
+            let path = page == 1 ? "/selectList.do" : "/selectList.do?pageNo=\(page)"
+            let html = try call(path, body)
+            let got = parseRows(html)
+            for r in got { if byDate[r.date] == nil { byDate[r.date] = r } }
+            if got.count < 19 { break }
+        }
+        return byDate.values.sorted { $0.date < $1.date }
     }
 
     static func parseRows(_ html: String) -> [Row] {
@@ -262,16 +269,10 @@ enum SzuAPI {
 
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
-        var all = try rows(client: client, roomId: roomId, room: room,
-                           from: cal.date(byAdding: .day, value: -19, to: today)!,
+        // 一次抓近 100 天（rows 内部翻页），月历与月度汇总都靠它
+        let all = try rows(client: client, roomId: roomId, room: room,
+                           from: cal.date(byAdding: .day, value: -100, to: today)!,
                            to: cal.date(byAdding: .day, value: -1, to: today)!)
-        // 第一段拿满了才补第二段（说明可能还有更早的）
-        if all.count >= 18 {
-            let older = try rows(client: client, roomId: roomId, room: room,
-                                 from: cal.date(byAdding: .day, value: -34, to: today)!,
-                                 to: cal.date(byAdding: .day, value: -20, to: today)!)
-            all.append(contentsOf: older)
-        }
 
         var dict: [String: Row] = [:]
         for r in all { dict[r.date] = r }

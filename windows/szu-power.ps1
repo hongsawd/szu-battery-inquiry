@@ -306,20 +306,58 @@ function Update-Autostart($cfg) {
 # ============================ 数据 ============================
 
 function Get-Rows([string]$client, [string]$roomId, [string]$room, [datetime]$from, [datetime]$to) {
-    $body = 'hiddenType=&isHost=&beginTime={0}&endTime={1}&type=2&client={2}&roomId={3}&roomName={4}&building=' -f `
+    # 服务端每页 19 条，靠 ?pageNo=N 翻页；实测能翻到几个月前（页脚写"共找到 39 条, 1/2"）
+    $body = 'hiddenType=&isHost=0&beginTime={0}&endTime={1}&type=2&client={2}&roomId={3}&roomName={4}&building=' -f `
         $from.ToString('yyyy-MM-dd'), $to.ToString('yyyy-MM-dd'), $client, $roomId, (Get-GbkPercent $room)
-    $html = Invoke-Sims '/selectList.do' $body
     $rowRx = [regex]'(?s)<tr[^>]*>\s*<td width="13%"[^>]*>\s*(\d+)\s*</td>\s*<td width="13%"[^>]*>\s*([^<]*?)\s*</td>\s*<td width="13%"[^>]*>\s*([\d.]+)\s*</td>\s*<td width="13%"[^>]*>\s*([\d.]+)\s*</td>\s*<td width="13%"[^>]*>\s*([\d.]+)\s*</td>\s*<td width="22%"[^>]*>\s*(\d{4}-\d{2}-\d{2})'
-    $rows = @()
-    foreach ($m in $rowRx.Matches($html)) {
-        $rows += [pscustomobject]@{
-            Remain = [double]$m.Groups[3].Value
-            Used   = [double]$m.Groups[4].Value
-            Bought = [double]$m.Groups[5].Value
-            Date   = $m.Groups[6].Value
+
+    $seen = @{}
+    for ($page = 1; $page -le 12; $page++) {
+        $path = if ($page -eq 1) { '/selectList.do' } else { '/selectList.do?pageNo=' + $page }
+        $html = Invoke-Sims $path $body
+        $hit = 0
+        foreach ($m in $rowRx.Matches($html)) {
+            $hit++
+            $d = $m.Groups[6].Value
+            if (-not $seen.ContainsKey($d)) {
+                $seen[$d] = [pscustomobject]@{
+                    Remain = [double]$m.Groups[3].Value
+                    Used   = [double]$m.Groups[4].Value
+                    Bought = [double]$m.Groups[5].Value
+                    Date   = $d
+                }
+            }
         }
+        if ($hit -lt 19) { break }   # 这页没凑满 → 最后一页
     }
-    $rows
+    @($seen.Values | Sort-Object Date)
+}
+
+# 购电记录（type=1）：购买电量 / 金额 / 时间 —— 用来算充值与月度花费
+function Get-BuyRows([string]$client, [string]$roomId, [string]$room, [datetime]$from, [datetime]$to) {
+    $body = 'hiddenType=&isHost=0&beginTime={0}&endTime={1}&type=1&client={2}&roomId={3}&roomName={4}&building=' -f `
+        $from.ToString('yyyy-MM-dd'), $to.ToString('yyyy-MM-dd'), $client, $roomId, (Get-GbkPercent $room)
+    $seen = @{}
+    for ($page = 1; $page -le 12; $page++) {
+        $path = if ($page -eq 1) { '/selectList.do' } else { '/selectList.do?pageNo=' + $page }
+        $html = Invoke-Sims $path $body
+        $hit = 0
+        foreach ($r in [regex]::Matches($html, '(?s)<tr[^>]*>\s*<td[^>]*>.*?</tr>')) {
+            $cells = [regex]::Matches($r.Value, '(?s)<td[^>]*>(.*?)</td>')
+            if ($cells.Count -lt 7) { continue }
+            $vals = @($cells | ForEach-Object { ($_.Groups[1].Value -replace '<[^>]+>', '' -replace '\s+', ' ').Trim() })
+            if ($vals[0] -notmatch '^\d+$') { continue }
+            $kwh = 0.0; $yuan = 0.0
+            if (-not [double]::TryParse($vals[4], [ref]$kwh)) { continue }
+            if (-not [double]::TryParse($vals[5], [ref]$yuan)) { continue }
+            $when = $vals[6]
+            if ($when -notmatch '^\d{4}-\d{2}-\d{2}') { continue }
+            $hit++
+            $seen[$when] = [pscustomobject]@{ When = $when; Kwh = $kwh; Yuan = $yuan }
+        }
+        if ($hit -lt 19) { break }
+    }
+    @($seen.Values | Sort-Object When)
 }
 
 function Get-PowerData($cfg) {
@@ -329,15 +367,10 @@ function Get-PowerData($cfg) {
     }
     $today = (Get-Date).Date
 
-    # 服务端一次最多回 20 条记录，所以拆两段抓：最近 20 天 + 再往前 20 天，拼起来凑够一个月
-    $w1 = @(Get-Rows $cfg.client $roomId $cfg.room $today.AddDays(-19) $today)
-    $w2 = @()
-    if ($w1.Count -ge 18) {
-        $w2 = @(Get-Rows $cfg.client $roomId $cfg.room $today.AddDays(-34) $today.AddDays(-20))
-    }
-    $seen = @{}
-    foreach ($r in @($w1 + $w2)) { $seen[$r.Date] = $r }
-    $rows = @($seen.Values | Sort-Object Date)
+    # 一次抓近 100 天（Get-Rows 内部翻页），月历/月度汇总/框选都靠它
+    $rows = @(Get-Rows $cfg.client $roomId $cfg.room $today.AddDays(-100) $today)
+    $buys = @()
+    try { $buys = @(Get-BuyRows $cfg.client $roomId $cfg.room $today.AddDays(-400) $today) } catch { $buys = @() }
 
     if (-not $rows.Count) {
         if ($cfg.roomId) {
@@ -371,6 +404,8 @@ function Get-PowerData($cfg) {
         Last     = $last
         Prev     = $prev
         Series   = $series
+        Daily    = $daily
+        Buys     = $buys
         DayUse   = if ($daily.Count) { $daily[-1].Value } elseif ($prev) { [math]::Round($last.Used - $prev.Used, 2) } else { $null }
         Recharge = if ($prev) { [math]::Round($last.Bought - $prev.Bought, 2) } else { 0 }
         Avg      = if ($valid.Count) { [math]::Round((($valid | Measure-Object Value -Average).Average), 2) } else { 0 }
@@ -380,26 +415,72 @@ function Get-PowerData($cfg) {
     }
 }
 
+# 每日一行的流水（月历/月度汇总/框选都读它）
+# 列：data_date,remain,used_total,bought_total,day_use
+function Read-HistoryMap {
+    $map = @{}
+    if (-not (Test-Path $Script:LogFile)) { return $map }
+    try {
+        $first = Get-Content $Script:LogFile -First 1 -Encoding UTF8
+        if ($first -notlike '*day_use*') {
+            # 老格式（每次查询一行）：归档，避免列错位
+            $old = Join-Path $Script:DataDir ('history-legacy-' + (Get-Date).ToString('yyyyMMdd-HHmmss') + '.csv')
+            Move-Item $Script:LogFile $old -Force
+            return $map
+        }
+        foreach ($r in (Import-Csv $Script:LogFile -Encoding UTF8)) {
+            if ($r.data_date) { $map[$r.data_date] = $r }
+        }
+    } catch { }
+    $map
+}
+
 function Write-History($data) {
     try {
         if (-not (Test-Path $Script:DataDir)) { New-Item -ItemType Directory -Path $Script:DataDir -Force | Out-Null }
-        $header = 'query_time,data_date,remain,used_total,bought_total,avg_per_day,days_left'
-        if (Test-Path $Script:LogFile) {
-            $first = Get-Content $Script:LogFile -First 1 -Encoding UTF8
-            if ($first -notlike '*avg_per_day*') {
-                # 老格式：归档后重新开表，避免列数不一致
-                $old = Join-Path $Script:DataDir 'history-legacy.csv'
-                if (Test-Path $old) { Remove-Item $old -Force -ErrorAction SilentlyContinue }
-                Move-Item $Script:LogFile $old -Force
+        $map = Read-HistoryMap
+
+        # 逐日用量：接口给的全部写进去
+        foreach ($d in @($data.Daily)) {
+            if (-not $d.Date) { continue }
+            $row = if ($map.ContainsKey($d.Date)) { $map[$d.Date] } else {
+                [pscustomobject]@{ data_date = $d.Date; remain = ''; used_total = ''; bought_total = ''; day_use = '' }
             }
+            $row.day_use = [string]$d.Value
+            $map[$d.Date] = $row
         }
-        if (-not (Test-Path $Script:LogFile)) {
-            $header | Set-Content -Path $Script:LogFile -Encoding UTF8
+
+        # 最新一天的余额/总电量
+        $ld = [string]$data.Last.Date
+        $row = if ($map.ContainsKey($ld)) { $map[$ld] } else {
+            [pscustomobject]@{ data_date = $ld; remain = ''; used_total = ''; bought_total = ''; day_use = '' }
         }
-        $left = if ($data.Avg -gt 0) { [math]::Floor($data.Last.Remain / $data.Avg) } else { '' }
-        ('{0},{1},{2},{3},{4},{5},{6}' -f (Get-Date).ToString('s'), $data.Last.Date, $data.Last.Remain, $data.Last.Used, $data.Last.Bought, $data.Avg, $left) |
-            Add-Content -Path $Script:LogFile -Encoding UTF8
-    } catch { }
+        $row.remain = [string]$data.Last.Remain
+        $row.used_total = [string]$data.Last.Used
+        $row.bought_total = [string]$data.Last.Bought
+        $map[$ld] = $row
+
+        @($map.Values | Sort-Object data_date |
+            Select-Object data_date, remain, used_total, bought_total, day_use) |
+            Export-Csv -Path $Script:LogFile -NoTypeInformation -Encoding UTF8
+
+        # 购电记录单独一张表：buy_time,kwh,yuan
+        $buys = @($data.Buys)
+        if ($buys.Count -gt 0) {
+            $buyFile = Join-Path $Script:DataDir 'history-buy.csv'
+            $buyMap = @{}
+            if (Test-Path $buyFile) {
+                foreach ($r in (Import-Csv $buyFile -Encoding UTF8)) { if ($r.buy_time) { $buyMap[$r.buy_time] = $r } }
+            }
+            foreach ($b in $buys) {
+                $buyMap[[string]$b.When] = [pscustomobject]@{
+                    buy_time = [string]$b.When; kwh = [string]$b.Kwh; yuan = [string]$b.Yuan
+                }
+            }
+            @($buyMap.Values | Sort-Object buy_time) |
+                Export-Csv -Path $buyFile -NoTypeInformation -Encoding UTF8
+        }
+    } catch { SzuLog ('history ERR: ' + $_.Exception.Message) }
 }
 
 # ============================ 设置向导 ============================
@@ -1923,6 +2004,32 @@ if ($Console) {
     Write-Output ('平均用电：{0} 度（近 {1} 天样本）' -f $d.Avg.ToString('0.##', $Script:Inv), $d.AvgDays)
     if ($d.Avg -gt 0) { Write-Output ('约还可用：{0} 天' -f [math]::Floor($d.Last.Remain / $d.Avg)) }
     Write-Output ('近5天：' + (($d.Series | ForEach-Object { '{0}={1}' -f $_.Label, $_.Value }) -join '  '))
+
+    # 月度汇总：本月 / 上月（数据来自每日流水）
+    $md = @{}
+    foreach ($x in @($d.Daily)) {
+        if (-not $x.Date) { continue }
+        $m = ([datetime]$x.Date).ToString('yyyy-MM')
+        if (-not $md.ContainsKey($m)) { $md[$m] = 0.0 }
+        $md[$m] += [double]$x.Value
+    }
+    $nowKey = (Get-Date).ToString('yyyy-MM')
+    $prevKey = (Get-Date).AddMonths(-1).ToString('yyyy-MM')
+    $mNow  = if ($md.ContainsKey($nowKey))  { $md[$nowKey].ToString('0.0',  $Script:Inv) + ' 度' }  else { '暂无' }
+    $mPrev = if ($md.ContainsKey($prevKey)) { $md[$prevKey].ToString('0.0', $Script:Inv) + ' 度' } else { '暂无' }
+    Write-Output ('本月（{0}）：{1}' -f $nowKey, $mNow)
+    Write-Output ('上月（{0}）：{1}' -f $prevKey, $mPrev)
+
+    if ($d.Buys -and $d.Buys.Count -gt 0) {
+        $bp = @($d.Buys | Where-Object { ([datetime]$_.When).ToString('yyyy-MM') -eq $prevKey })
+        if ($bp.Count -gt 0) {
+            $kwh  = [double](($bp | Measure-Object Kwh  -Sum).Sum)
+            $yuan = [double](($bp | Measure-Object Yuan -Sum).Sum)
+            Write-Output ('上月充值：{0} 度 / {1} 元（{2} 笔）' -f $kwh.ToString('0.#', $Script:Inv), $yuan.ToString('0.#', $Script:Inv), $bp.Count)
+        } else {
+            Write-Output ('上月充值：无记录（购电记录共 {0} 笔）' -f $d.Buys.Count)
+        }
+    }
     exit 0
 }
 
